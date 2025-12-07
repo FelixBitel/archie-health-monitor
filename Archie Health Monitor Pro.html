@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐕 Панель управления здоровьем Арчи</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50">
+    <div id="app"></div>
+
+    <script>
+        // Состояние приложения
+        const state = {
+            activeTab: 'dashboard',
+            apiKey: '',
+            showApiSettings: false,
+            archieData: {
+                name: 'Арчи',
+                breed: 'Мишлинг',
+                age: 11,
+                weight: 21,
+                status: 'Под наблюдением после операции',
+                medications: [
+                    { name: 'Урзахол', dosage: '1 капсула', times: ['09:00', '21:00'] },
+                    { name: 'Гепатосан', dosage: '1 таблетка', times: ['09:00', '18:00'] }
+                ]
+            },
+            meals: [
+                { id: 1, name: 'Утренняя порция', ingredients: ['Курица 150г', 'Рис 100г', 'Морковь 50г'], calories: 420 },
+                { id: 2, name: 'Вечерняя порция', ingredients: ['Говядина 150г', 'Гречка 100г', 'Тыква 50г'], calories: 450 }
+            ],
+            events: [
+                { id: 1, type: 'walk', title: 'Утренняя прогулка', time: '08:00', duration: '30 мин', completed: true },
+                { id: 2, type: 'medication', title: 'Урзахол', time: '09:00', completed: true },
+                { id: 3, type: 'meal', title: 'Завтрак', time: '09:30', completed: false },
+                { id: 4, type: 'walk', title: 'Дневная прогулка', time: '14:00', duration: '45 мин', completed: false },
+                { id: 5, type: 'medication', title: 'Гепатосан', time: '18:00', completed: false },
+                { id: 6, type: 'meal', title: 'Ужин', time: '19:00', completed: false },
+                { id: 7, type: 'walk', title: 'Вечерняя прогулка', time: '21:00', duration: '20 мин', completed: false }
+            ],
+            recipes: [
+                { id: 1, name: 'Куриное рагу', ingredients: ['Курица', 'Рис', 'Морковь', 'Кабачок'], calories: 850, portions: 2 },
+                { id: 2, name: 'Говяжий микс', ingredients: ['Говядина', 'Гречка', 'Тыква', 'Яблоко'], calories: 900, portions: 2 }
+            ],
+            documents: [
+                { id: 1, name: 'Анализы крови 15.10.2024', type: 'pdf', size: '2.3 MB' },
+                { id: 2, name: 'Выписка после операции', type: 'pdf', size: '1.8 MB' },
+                { id: 3, name: 'Ветеринарный паспорт', type: 'pdf', size: '5.1 MB' }
+            ],
+            aiChat: [],
+            aiInput: '',
+            aiLoading: false,
+            showAddMeal: false,
+            showAddRecipe: false,
+            newMeal: { name: '', ingredients: [''], calories: 0 },
+            newRecipe: { name: '', ingredients: [''], calories: 0, portions: 1 },
+            healthLogs: [
+                { id: 1, date: '2024-12-07', time: '08:30', type: 'walk', notes: 'Утренняя прогулка 30 мин, активная, хорошее настроение', energy: 'высокая' },
+                { id: 2, date: '2024-12-07', time: '09:00', type: 'medication', notes: 'Урзахол 1 капсула - принял нормально', side_effects: 'нет' },
+                { id: 3, date: '2024-12-07', time: '12:00', type: 'weight', weight: 21.2, notes: 'Вес в норме' },
+                { id: 4, date: '2024-12-06', time: '19:00', type: 'health', notes: 'Хромота на левую заднюю лапу уменьшилась, движения более свободные', severity: 'легкая' }
+            ],
+            showAddLog: false,
+            newLog: { date: new Date().toISOString().split('T')[0], time: '12:00', type: 'health', notes: '', weight: '', energy: '', severity: 'легкая', side_effects: 'нет' },
+            graphData: {
+                weight: [[2024-11-15, 22.1], [2024-11-20, 21.8], [2024-11-25, 21.5], [2024-12-01, 21.3], [2024-12-07, 21.2]],
+                energy: { '2024-12-07': 'высокая', '2024-12-06': 'средняя', '2024-12-05': 'высокая', '2024-12-04': 'средняя', '2024-12-03': 'низкая' }
+            },
+            showStatistics: false
+        };
+
+        const calorieTarget = 870;
+
+        function getDailyCalories() {
+            return state.meals.reduce((sum, meal) => sum + meal.calories, 0);
+        }
+
+        function updateTab(tabId) {
+            state.activeTab = tabId;
+            render();
+        }
+
+        function toggleEvent(id) {
+            const event = state.events.find(e => e.id === id);
+            if (event) event.completed = !event.completed;
+            render();
+        }
+
+        function openAddMeal() {
+            state.showAddMeal = true;
+            render();
+        }
+
+        function closeAddMeal() {
+            state.showAddMeal = false;
+            render();
+        }
+
+        function openAddRecipe() {
+            state.showAddRecipe = true;
+            render();
+        }
+
+        function closeAddRecipe() {
+            state.showAddRecipe = false;
+            render();
+        }
+
+        function addMeal() {
+            if (state.newMeal.name && state.newMeal.ingredients[0]) {
+                state.meals.push({ ...state.newMeal, id: Date.now() });
+                state.newMeal = { name: '', ingredients: [''], calories: 0 };
+                state.showAddMeal = false;
+                render();
+            }
+        }
+
+        function addRecipe() {
+            if (state.newRecipe.name && state.newRecipe.ingredients[0]) {
+                state.recipes.push({ ...state.newRecipe, id: Date.now() });
+                state.newRecipe = { name: '', ingredients: [''], calories: 0, portions: 1 };
+                state.showAddRecipe = false;
+                render();
+            }
+        }
+
+        function updateMealName(value) {
+            state.newMeal.name = value;
+        }
+
+        function updateMealIngredient(index, value) {
+            state.newMeal.ingredients[index] = value;
+        }
+
+        function addMealIngredient() {
+            state.newMeal.ingredients.push('');
+            render();
+        }
+
+        function updateMealCalories(value) {
+            state.newMeal.calories = parseInt(value) || 0;
+        }
+
+        function updateRecipeName(value) {
+            state.newRecipe.name = value;
+        }
+
+        function updateRecipeIngredient(index, value) {
+            state.newRecipe.ingredients[index] = value;
+        }
+
+        function addRecipeIngredient() {
+            state.newRecipe.ingredients.push('');
+            render();
+        }
+
+        function updateRecipeCalories(value) {
+            state.newRecipe.calories = parseInt(value) || 0;
+        }
+
+        function updateRecipePortions(value) {
+            state.newRecipe.portions = parseInt(value) || 1;
+        }
+
+        function openApiSettings() {
+            state.showApiSettings = true;
+            render();
+        }
+
+        function closeApiSettings() {
+            state.showApiSettings = false;
+            render();
+        }
+
+        function updateApiKey(value) {
+            state.apiKey = value;
+        }
+
+        function saveApiKey() {
+            // API ключ сохранён в state
+            state.showApiSettings = false;
+            render();
+        }
+
+        function updateAiInput(value) {
+            state.aiInput = value;
+        }
+
+        function openAddLog() {
+            state.showAddLog = true;
+            render();
+        }
+
+        function closeAddLog() {
+            state.showAddLog = false;
+            render();
+        }
+
+        function updateLogField(field, value) {
+            state.newLog[field] = value;
+        }
+
+        function addHealthLog() {
+            if (state.newLog.date && state.newLog.type) {
+                const logEntry = { ...state.newLog, id: Date.now() };
+                state.healthLogs.unshift(logEntry);
+                
+                // Обновляем графики если это вес
+                if (state.newLog.type === 'weight' && state.newLog.weight) {
+                    state.graphData.weight.push([new Date(state.newLog.date), parseFloat(state.newLog.weight)]);
+                }
+                
+                // Сохраняем в localStorage
+                localStorage.setItem('archieHealthLogs', JSON.stringify(state.healthLogs));
+                
+                state.newLog = { date: new Date().toISOString().split('T')[0], time: '12:00', type: 'health', notes: '', weight: '', energy: '', severity: 'легкая', side_effects: 'нет' };
+                state.showAddLog = false;
+                render();
+            }
+        }
+
+        function deleteLog(id) {
+            state.healthLogs = state.healthLogs.filter(log => log.id !== id);
+            localStorage.setItem('archieHealthLogs', JSON.stringify(state.healthLogs));
+            render();
+        }
+
+        function downloadLogsAsCSV() {
+            let csv = 'Дата,Время,Тип,Заметки,Энергия,Вес,Тяжесть,Побочные эффекты\n';
+            state.healthLogs.forEach(log => {
+                csv += `"${log.date}","${log.time}","${log.type}","${log.notes || ''}","${log.energy || ''}","${log.weight || ''}","${log.severity || ''}","${log.side_effects || ''}"\n`;
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `archie_logs_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        function getLogTypeIcon(type) {
+            const icons = {
+                'walk': '🚶',
+                'medication': '💊',
+                'weight': '⚖️',
+                'health': '🏥',
+                'mood': '😊',
+                'appetite': '🍖',
+                'bathroom': '🚽'
+            };
+            return icons[type] || '📝';
+        }
+
+        function getLogTypeLabel(type) {
+            const labels = {
+                'walk': 'Прогулка',
+                'medication': 'Лекарство',
+                'weight': 'Вес',
+                'health': 'Здоровье',
+                'mood': 'Настроение',
+                'appetite': 'Аппетит',
+                'bathroom': 'Туалет'
+            };
+            return labels[type] || 'Заметка';
+        }
+
+        function getEnergyColor(energy) {
+            const colors = {
+                'высокая': 'bg-green-100 text-green-700',
+                'средняя': 'bg-yellow-100 text-yellow-700',
+                'низкая': 'bg-red-100 text-red-700'
+            };
+            return colors[energy] || 'bg-gray-100 text-gray-700';
+        }
+
+        // Загружаем логи из localStorage при инициализации
+        window.addEventListener('load', function() {
+            const saved = localStorage.getItem('archieHealthLogs');
+            if (saved) {
+                state.healthLogs = JSON.parse(saved);
+            }
+        });
+
+        async function sendAiMessage() {
+            if (!state.aiInput.trim()) return;
+            if (!state.apiKey) {
+                alert('Пожалуйста, добавьте API ключ в настройках');
+                return;
+            }
+
+            const userMessage = { role: 'user', content: state.aiInput };
+            const currentInput = state.aiInput;
+            state.aiChat.push(userMessage);
+            state.aiInput = '';
+            state.aiLoading = true;
+            render();
+
+            try {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': state.apiKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-20250514',
+                        max_tokens: 1024,
+                        messages: [
+                            {
+                                role: 'user',
+                                content: `Ты ветеринарный помощник для собаки по кличке Арчи. Данные: ${JSON.stringify(state.archieData)}. Вопрос: ${currentInput}`
+                            }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                const aiMessage = { role: 'assistant', content: data.content[0].text };
+                state.aiChat.push(aiMessage);
+            } catch (error) {
+                const errorMessage = { role: 'assistant', content: 'Ошибка соединения с API. Проверьте ключ.' };
+                state.aiChat.push(errorMessage);
+            }
+            state.aiLoading = false;
+            render();
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            const dailyCalories = getDailyCalories();
+
+            let content = '';
+
+            if (state.activeTab === 'dashboard') {
+                const walkCount = state.events.filter(e => e.type === 'walk' && e.completed).length;
+                const walkTotal = state.events.filter(e => e.type === 'walk').length;
+                const medCount = state.events.filter(e => e.type === 'medication' && e.completed).length;
+                const medTotal = state.events.filter(e => e.type === 'medication').length;
+
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <h2 class="text-3xl font-bold mb-2">🐕 ${state.archieData.name}</h2>
+                                    <p class="text-blue-100 mb-4">${state.archieData.breed} • ${state.archieData.age} лет • ${state.archieData.weight} кг</p>
+                                    <div class="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 inline-block">
+                                        <p class="text-sm">${state.archieData.status}</p>
+                                    </div>
+                                </div>
+                                <button onclick="openApiSettings()" class="bg-white/20 hover:bg-white/30 p-3 rounded-lg transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-green-500">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">Прогулки сегодня</p>
+                                        <p class="text-3xl font-bold text-gray-800">${walkCount}/${walkTotal}</p>
+                                    </div>
+                                    <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 003 16.382V5.618a1 1 0 011.553-.894L9 7m0 13l6.447 3.268A1 1 0 0021 19.382V4.618a1 1 0 00-1.553-.894L15 7m0 13V7m0 0L9 4"></path></svg>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-blue-500">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">Калории сегодня</p>
+                                        <p class="text-3xl font-bold text-gray-800">${dailyCalories}/${calorieTarget}</p>
+                                    </div>
+                                    <svg class="w-10 h-10 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                </div>
+                            </div>
+
+                            <div class="bg-white rounded-xl p-6 shadow-lg border-l-4 border-purple-500">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="text-gray-500 text-sm">Лекарства</p>
+                                        <p class="text-3xl font-bold text-gray-800">${medCount}/${medTotal}</p>
+                                    </div>
+                                    <svg class="w-10 h-10 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                Расписание на сегодня
+                            </h3>
+                            <div class="space-y-3">
+                                ${state.events.map(event => `
+                                    <div class="flex items-center gap-4 p-4 rounded-lg transition ${event.completed ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}">
+                                        <input type="checkbox" ${event.completed ? 'checked' : ''} onchange="toggleEvent(${event.id})" class="w-5 h-5 rounded">
+                                        <div class="flex-1">
+                                            <p class="font-semibold ${event.completed ? 'line-through text-gray-500' : 'text-gray-800'}">${event.title}</p>
+                                            <p class="text-sm text-gray-500">${event.time} ${event.duration ? '• ' + event.duration : ''}</p>
+                                        </div>
+                                        <span class="px-3 py-1 rounded-full text-xs font-semibold ${
+                                            event.type === 'walk' ? 'bg-green-100 text-green-700' :
+                                            event.type === 'medication' ? 'bg-purple-100 text-purple-700' :
+                                            'bg-blue-100 text-blue-700'
+                                        }">
+                                            ${event.type === 'walk' ? 'Прогулка' : event.type === 'medication' ? 'Лекарство' : 'Еда'}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'nutrition') {
+                const percentage = Math.round((dailyCalories / calorieTarget) * 100);
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <h3 class="text-2xl font-bold mb-4">Калькулятор питания</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                <div class="bg-gradient-to-r from-orange-100 to-orange-200 p-4 rounded-lg">
+                                    <p class="text-sm text-orange-700 mb-1">Дневная норма</p>
+                                    <p class="text-3xl font-bold text-orange-800">${calorieTarget} ккал</p>
+                                </div>
+                                <div class="bg-gradient-to-r from-green-100 to-green-200 p-4 rounded-lg">
+                                    <p class="text-sm text-green-700 mb-1">Употреблено сегодня</p>
+                                    <p class="text-3xl font-bold text-green-800">${dailyCalories} ккал</p>
+                                </div>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+                                <div class="h-4 rounded-full transition-all ${dailyCalories > calorieTarget ? 'bg-red-500' : 'bg-green-500'}"
+                                     style="width: ${Math.min(percentage, 100)}%"></div>
+                            </div>
+                            <p class="text-sm text-gray-600 text-center">${percentage}% от нормы</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold">Сегодняшнее меню</h3>
+                                <button onclick="openAddMeal()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    Добавить
+                                </button>
+                            </div>
+                            <div class="space-y-4">
+                                ${state.meals.map(meal => `
+                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                        <h4 class="font-bold text-lg mb-2">${meal.name}</h4>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            ${meal.ingredients.map(ing => `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">${ing}</span>`).join('')}
+                                        </div>
+                                        <p class="text-gray-600 font-semibold">${meal.calories} ккал</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'recipes') {
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold">Библиотека рецептов</h3>
+                                <button onclick="openAddRecipe()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    Новый рецепт
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                ${state.recipes.map(recipe => `
+                                    <div class="border-2 border-gray-200 rounded-xl p-5 hover:border-blue-500 transition">
+                                        <h4 class="font-bold text-xl mb-3">${recipe.name}</h4>
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            ${recipe.ingredients.map(ing => `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm">${ing}</span>`).join('')}
+                                        </div>
+                                        <div class="flex justify-between items-center text-sm">
+                                            <span class="text-gray-600 font-semibold">${recipe.calories} ккал</span>
+                                            <span class="text-gray-600">${recipe.portions} порции</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'documents') {
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold">Медицинские документы</h3>
+                                <button class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                    Загрузить
+                                </button>
+                            </div>
+                            <div class="space-y-3">
+                                ${state.documents.map(doc => `
+                                    <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
+                                        <div class="flex items-center gap-3">
+                                            <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                            <div>
+                                                <p class="font-semibold">${doc.name}</p>
+                                                <p class="text-sm text-gray-500">${doc.type.toUpperCase()} • ${doc.size}</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button class="p-2 hover:bg-gray-200 rounded-lg">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                            </button>
+                                            <button class="p-2 hover:bg-red-100 rounded-lg text-red-500">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'logs') {
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-2xl font-bold">📋 Журнал здоровья</h3>
+                                <div class="flex gap-2">
+                                    <button onclick="openAddLog()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                        Новая запись
+                                    </button>
+                                    <button onclick="downloadLogsAsCSV()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                        Скачать CSV
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
+                                ${state.healthLogs.length === 0 ? '<p class="text-gray-500 text-center py-8">Логи здоровья отсутствуют</p>' : ''}
+                                ${state.healthLogs.map(log => `
+                                    <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div class="flex items-center gap-3">
+                                                <span class="text-2xl">${getLogTypeIcon(log.type)}</span>
+                                                <div>
+                                                    <p class="font-bold text-lg">${getLogTypeLabel(log.type)}</p>
+                                                    <p class="text-sm text-gray-500">${log.date} • ${log.time}</p>
+                                                </div>
+                                            </div>
+                                            <button onclick="deleteLog(${log.id})" class="text-red-500 hover:text-red-700">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </div>
+                                        
+                                        ${log.notes ? `<p class="text-gray-700 mb-2">${log.notes}</p>` : ''}
+                                        
+                                        <div class="flex flex-wrap gap-2">
+                                            ${log.weight ? `<span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm">⚖️ ${log.weight} кг</span>` : ''}
+                                            ${log.energy ? `<span class="${getEnergyColor(log.energy)} px-3 py-1 rounded-full text-sm">⚡ ${log.energy}</span>` : ''}
+                                            ${log.severity ? `<span class="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm">🔴 ${log.severity}</span>` : ''}
+                                            ${log.side_effects && log.side_effects !== 'нет' ? `<span class="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm">⚠️ ${log.side_effects}</span>` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'ai') {
+                content = `
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl p-6 shadow-lg h-[600px] flex flex-col">
+                            <h3 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                                <svg class="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0zm3.879-10.879l-.707.707M3 12a9 9 0 1118 0 9 9 0 01-18 0zm10.879-10.879l.707.707M12 3v1"></path></svg>
+                                ИИ-Помощник для Арчи
+                            </h3>
+                            <div class="flex-1 overflow-y-auto space-y-4 mb-4">
+                                ${state.aiChat.length === 0 ? `
+                                    <div class="text-center text-gray-500 mt-20">
+                                        <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0zm3.879-10.879l-.707.707M3 12a9 9 0 1118 0 9 9 0 01-18 0zm10.879-10.879l.707.707M12 3v1"></path></svg>
+                                        <p>Задайте вопрос о здоровье, питании или уходе за Арчи</p>
+                                    </div>
+                                ` : ''}
+                                ${state.aiChat.map((msg, i) => `
+                                    <div class="flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                        <div class="max-w-[80%] rounded-2xl p-4 ${
+                                            msg.role === 'user' 
+                                                ? 'bg-blue-500 text-white' 
+                                                : 'bg-gray-100 text-gray-800'
+                                        }">
+                                            ${msg.content}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                                ${state.aiLoading ? `
+                                    <div class="flex justify-start">
+                                        <div class="bg-gray-100 rounded-2xl p-4 text-gray-500">Думаю...</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" value="${state.aiInput}" oninput="updateAiInput(this.value)" onkeypress="if(event.key==='Enter') sendAiMessage()" placeholder="Напишите ваш вопрос..." class="flex-1 border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button onclick="sendAiMessage()" ${state.aiLoading ? 'disabled' : ''} class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg ${state.aiLoading ? 'opacity-50' : ''}">
+                                    Отправить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const html = `
+                <div class="bg-white shadow-md sticky top-0 z-40">
+                    <div class="max-w-7xl mx-auto px-4 py-4">
+                        <h1 class="text-2xl font-bold text-gray-800">🐕 Панель управления здоровьем Арчи</h1>
+                    </div>
+                </div>
+
+                <div class="max-w-7xl mx-auto px-4 py-4">
+                    <div class="bg-white rounded-xl shadow-lg p-2 flex flex-wrap gap-2">
+                        <button onclick="updateTab('dashboard')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'dashboard' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-3m0 0l7-4 7 4M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9m-9 11l4-4"></path></svg>
+                            <span class="hidden sm:inline">Главная</span>
+                        </button>
+                        <button onclick="updateTab('nutrition')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'nutrition' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                            <span class="hidden sm:inline">Питание</span>
+                        </button>
+                        <button onclick="updateTab('recipes')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'recipes' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            <span class="hidden sm:inline">Рецепты</span>
+                        </button>
+                        <button onclick="updateTab('documents')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'documents' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                            <span class="hidden sm:inline">Документы</span>
+                        </button>
+                        <button onclick="updateTab('logs')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'logs' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            <span class="hidden sm:inline">Журнал</span>
+                        </button>
+                        <button onclick="updateTab('ai')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'ai' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0zm3.879-10.879l-.707.707M3 12a9 9 0 1118 0 9 9 0 01-18 0zm10.879-10.879l.707.707M12 3v1"></path></svg>
+                            <span class="hidden sm:inline">ИИ-Помощник</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="max-w-7xl mx-auto px-4 py-6">
+                    ${content}
+                </div>
+
+                ${state.showAddMeal ? `
+                    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                            <h3 class="text-xl font-bold mb-4">Новый прием пищи</h3>
+                            <input type="text" placeholder="Название" value="${state.newMeal.name}" oninput="updateMealName(this.value)" class="w-full border rounded-lg p-2 mb-3">
+                            ${state.newMeal.ingredients.map((ing, i) => `
+                                <input type="text" placeholder="Ингредиент ${i + 1}" value="${ing}" oninput="updateMealIngredient(${i}, this.value)" class="w-full border rounded-lg p-2 mb-2">
+                            `).join('')}
+                            <button onclick="addMealIngredient()" class="text-blue-500 text-sm mb-3">+ Добавить ингредиент</button>
+                            <input type="number" placeholder="Калории" value="${state.newMeal.calories || ''}" oninput="updateMealCalories(this.value)" class="w-full border rounded-lg p-2 mb-4">
+                            <div class="flex gap-2">
+                                <button onclick="addMeal()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg">Сохранить</button>
+                                <button onclick="closeAddMeal()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${state.showAddRecipe ? `
+                    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                            <h3 class="text-xl font-bold mb-4">Новый рецепт</h3>
+                            <input type="text" placeholder="Название рецепта" value="${state.newRecipe.name}" oninput="updateRecipeName(this.value)" class="w-full border rounded-lg p-2 mb-3">
+                            ${state.newRecipe.ingredients.map((ing, i) => `
+                                <input type="text" placeholder="Ингредиент ${i + 1}" value="${ing}" oninput="updateRecipeIngredient(${i}, this.value)" class="w-full border rounded-lg p-2 mb-2">
+                            `).join('')}
+                            <button onclick="addRecipeIngredient()" class="text-blue-500 text-sm mb-3">+ Добавить ингредиент</button>
+                            <input type="number" placeholder="Калории (общие)" value="${state.newRecipe.calories || ''}" oninput="updateRecipeCalories(this.value)" class="w-full border rounded-lg p-2 mb-3">
+                            <input type="number" placeholder="Количество порций" value="${state.newRecipe.portions || ''}" oninput="updateRecipePortions(this.value)" class="w-full border rounded-lg p-2 mb-4">
+                            <div class="flex gap-2">
+                                <button onclick="addRecipe()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg">Сохранить</button>
+                                <button onclick="closeAddRecipe()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${state.showAddLog ? `
+                    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                            <h3 class="text-xl font-bold mb-4">Новая запись в журнал</h3>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Дата</label>
+                                    <input type="date" value="${state.newLog.date}" oninput="updateLogField('date', this.value)" class="w-full border rounded-lg p-2">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Время</label>
+                                    <input type="time" value="${state.newLog.time}" oninput="updateLogField('time', this.value)" class="w-full border rounded-lg p-2">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Тип записи</label>
+                                    <select value="${state.newLog.type}" oninput="updateLogField('type', this.value)" class="w-full border rounded-lg p-2">
+                                        <option value="health">🏥 Здоровье</option>
+                                        <option value="walk">🚶 Прогулка</option>
+                                        <option value="medication">💊 Лекарство</option>
+                                        <option value="weight">⚖️ Вес</option>
+                                        <option value="mood">😊 Настроение</option>
+                                        <option value="appetite">🍖 Аппетит</option>
+                                        <option value="bathroom">🚽 Туалет</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Заметки</label>
+                                    <textarea value="${state.newLog.notes}" oninput="updateLogField('notes', this.value)" placeholder="Опишите что произошло..." class="w-full border rounded-lg p-2 h-20 resize-none"></textarea>
+                                </div>
+                                
+                                ${state.newLog.type === 'weight' ? `
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Вес (кг)</label>
+                                        <input type="number" step="0.1" value="${state.newLog.weight}" oninput="updateLogField('weight', this.value)" placeholder="21.5" class="w-full border rounded-lg p-2">
+                                    </div>
+                                ` : ''}
+                                
+                                ${['health', 'mood'].includes(state.newLog.type) ? `
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Энергия</label>
+                                        <select value="${state.newLog.energy}" oninput="updateLogField('energy', this.value)" class="w-full border rounded-lg p-2">
+                                            <option value="">Не указана</option>
+                                            <option value="высокая">⚡ Высокая</option>
+                                            <option value="средняя">➖ Средняя</option>
+                                            <option value="низкая">🔻 Низкая</option>
+                                        </select>
+                                    </div>
+                                ` : ''}
+                                
+                                ${state.newLog.type === 'health' ? `
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Тяжесть симптома</label>
+                                        <select value="${state.newLog.severity}" oninput="updateLogField('severity', this.value)" class="w-full border rounded-lg p-2">
+                                            <option value="легкая">🟢 Легкая</option>
+                                            <option value="средняя">🟡 Средняя</option>
+                                            <option value="тяжелая">🔴 Тяжелая</option>
+                                        </select>
+                                    </div>
+                                ` : ''}
+                                
+                                ${state.newLog.type === 'medication' ? `
+                                    <div>
+                                        <label class="block text-sm font-semibold mb-1">Побочные эффекты</label>
+                                        <input type="text" value="${state.newLog.side_effects}" oninput="updateLogField('side_effects', this.value)" placeholder="нет" class="w-full border rounded-lg p-2">
+                                    </div>
+                                ` : ''}
+                            </div>
+                            
+                            <div class="flex gap-2 mt-4">
+                                <button onclick="addHealthLog()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold">Сохранить запись</button>
+                                <button onclick="closeAddLog()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${state.showApiSettings ? `
+                    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                            <h3 class="text-xl font-bold mb-4">Настройки API</h3>
+                            <p class="text-sm text-gray-600 mb-3">Введите ваш Anthropic API ключ для использования ИИ-помощника</p>
+                            <input type="password" value="${state.apiKey}" oninput="updateApiKey(this.value)" placeholder="sk-ant-..." class="w-full border rounded-lg p-3 mb-4">
+                            <div class="flex gap-2">
+                                <button onclick="saveApiKey()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg flex items-center justify-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    Сохранить
+                                </button>
+                                <button onclick="closeApiSettings()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+
+            app.innerHTML = html;
+        }
+
+        render();
+    </script>
+</body>
+</html>
