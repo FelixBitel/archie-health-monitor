@@ -6,8 +6,23 @@
     <title>🐕 Панель управления здоровьем Арчи</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.7); }
+        }
+        .pulse-glow { animation: pulse-glow 2s infinite; }
+        .archie-avatar { 
+            width: 120px; 
+            height: 120px; 
+            border-radius: 50%; 
+            object-fit: cover;
+            border: 3px solid white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+    </style>
 </head>
-<body class="bg-gradient-to-br from-blue-50 to-purple-50">
+<body class="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
     <div id="app"></div>
 
     <script>
@@ -17,12 +32,14 @@
             apiKey: '',
             apiProvider: 'anthropic',
             showApiSettings: false,
+            archieAvatar: 'https://agi-prod-file-upload-public-main-use1.s3.amazonaws.com/96a9ee32-d2d4-49f7-8f55-8ee55a4f5665',
             archieData: {
                 name: 'Арчи',
                 breed: 'Мишлинг',
                 age: 11,
                 weight: 21,
                 status: 'Под наблюдением после операции',
+                lastCheckup: '2024-12-05',
                 medications: [
                     { name: 'Урзахол', dosage: '1 капсула', times: ['09:00', '21:00'] },
                     { name: 'Гепатосан', dosage: '1 таблетка', times: ['09:00', '18:00'] }
@@ -69,7 +86,15 @@
                 weight: [[2024-11-15, 22.1], [2024-11-20, 21.8], [2024-11-25, 21.5], [2024-12-01, 21.3], [2024-12-07, 21.2]],
                 energy: { '2024-12-07': 'высокая', '2024-12-06': 'средняя', '2024-12-05': 'высокая', '2024-12-04': 'средняя', '2024-12-03': 'низкая' }
             },
-            showStatistics: false
+            showStatistics: false,
+            showAddTask: false,
+            tasks: [
+                { id: 1, title: 'Проверить хромоту на левой лапе', priority: 'высокий', dueDate: '2024-12-10', completed: false, category: 'здоровье' },
+                { id: 2, title: 'Записаться к ветеринару', priority: 'высокий', dueDate: '2024-12-15', completed: false, category: 'медицина' },
+                { id: 3, title: 'Купить витамины для суставов', priority: 'средний', dueDate: '2024-12-12', completed: false, category: 'покупки' },
+                { id: 4, title: 'Увеличить прогулки до 1 часа', priority: 'средний', dueDate: '2024-12-14', completed: false, category: 'активность' }
+            ],
+            newTask: { title: '', priority: 'средний', dueDate: '', category: 'здоровье', completed: false }
         };
 
         const calorieTarget = 870;
@@ -203,6 +228,45 @@
             state.aiInput = value;
         }
 
+        function openAddTask() {
+            state.showAddTask = true;
+            render();
+        }
+
+        function closeAddTask() {
+            state.showAddTask = false;
+            render();
+        }
+
+        function updateTaskField(field, value) {
+            state.newTask[field] = value;
+        }
+
+        function addTask() {
+            if (state.newTask.title && state.newTask.dueDate) {
+                state.tasks.push({ ...state.newTask, id: Date.now() });
+                state.newTask = { title: '', priority: 'средний', dueDate: '', category: 'здоровье', completed: false };
+                state.showAddTask = false;
+                localStorage.setItem('archieTasks', JSON.stringify(state.tasks));
+                render();
+            }
+        }
+
+        function toggleTask(id) {
+            const task = state.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                localStorage.setItem('archieTasks', JSON.stringify(state.tasks));
+                render();
+            }
+        }
+
+        function deleteTask(id) {
+            state.tasks = state.tasks.filter(t => t.id !== id);
+            localStorage.setItem('archieTasks', JSON.stringify(state.tasks));
+            render();
+        }
+
         function openAddLog() {
             state.showAddLog = true;
             render();
@@ -295,6 +359,10 @@
             const saved = localStorage.getItem('archieHealthLogs');
             if (saved) {
                 state.healthLogs = JSON.parse(saved);
+            }
+            const savedTasks = localStorage.getItem('archieTasks');
+            if (savedTasks) {
+                state.tasks = JSON.parse(savedTasks);
             }
             loadApiSettings();
         });
@@ -422,13 +490,17 @@
 
                 content = `
                     <div class="space-y-6">
-                        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
-                            <div class="flex items-start justify-between">
-                                <div>
-                                    <h2 class="text-3xl font-bold mb-2">🐕 ${state.archieData.name}</h2>
-                                    <p class="text-blue-100 mb-4">${state.archieData.breed} • ${state.archieData.age} лет • ${state.archieData.weight} кг</p>
-                                    <div class="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 inline-block">
-                                        <p class="text-sm">${state.archieData.status}</p>
+                        <div class="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-3xl p-8 text-white shadow-2xl pulse-glow">
+                            <div class="flex items-center justify-between gap-6">
+                                <div class="flex items-center gap-6">
+                                    <img src="${state.archieAvatar}" alt="Арчи" class="archie-avatar">
+                                    <div>
+                                        <h2 class="text-4xl font-bold mb-2">🐕 ${state.archieData.name}</h2>
+                                        <p class="text-blue-100 mb-3 text-lg">${state.archieData.breed} • ${state.archieData.age} лет • ${state.archieData.weight} кг</p>
+                                        <div class="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 inline-block mb-2">
+                                            <p class="text-sm font-semibold">${state.archieData.status}</p>
+                                        </div>
+                                        <p class="text-xs text-blue-100">Последняя проверка: ${state.archieData.lastCheckup}</p>
                                     </div>
                                 </div>
                                 <button onclick="openApiSettings()" class="bg-white/20 hover:bg-white/30 p-3 rounded-lg transition">
@@ -652,6 +724,72 @@
                         </div>
                     </div>
                 `;
+            } else if (state.activeTab === 'tasks') {
+                const completedTasks = state.tasks.filter(t => t.completed).length;
+                const tasksByPriority = {
+                    высокий: state.tasks.filter(t => t.priority === 'высокий' && !t.completed),
+                    средний: state.tasks.filter(t => t.priority === 'средний' && !t.completed),
+                    низкий: state.tasks.filter(t => t.priority === 'низкий' && !t.completed)
+                };
+                content = `
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div class="bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+                                <p class="text-sm opacity-90 mb-1">Всего задач</p>
+                                <p class="text-3xl font-bold">${state.tasks.length}</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-green-400 to-green-600 rounded-xl p-6 text-white shadow-lg">
+                                <p class="text-sm opacity-90 mb-1">Выполнено</p>
+                                <p class="text-3xl font-bold">${completedTasks}</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-red-400 to-red-600 rounded-xl p-6 text-white shadow-lg">
+                                <p class="text-sm opacity-90 mb-1">Срочные</p>
+                                <p class="text-3xl font-bold">${tasksByPriority.высокий.length}</p>
+                            </div>
+                            <div class="bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+                                <p class="text-sm opacity-90 mb-1">Прогресс</p>
+                                <p class="text-3xl font-bold">${state.tasks.length > 0 ? Math.round((completedTasks / state.tasks.length) * 100) : 0}%</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-6 shadow-lg">
+                            <div class="flex justify-between items-center mb-6">
+                                <h3 class="text-2xl font-bold">📋 Задачи здоровья</h3>
+                                <button onclick="openAddTask()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    Новая задача
+                                </button>
+                            </div>
+
+                            <div class="space-y-6">
+                                ${['высокий', 'средний', 'низкий'].map(priority => {
+                                    const priorityLabel = { высокий: '🔴 Срочные', средний: '🟡 Важные', низкий: '🟢 Обычные' }[priority];
+                                    const tasks = state.tasks.filter(t => t.priority === priority);
+                                    return `
+                                        <div>
+                                            <h4 class="text-lg font-bold mb-3 ${priority === 'высокий' ? 'text-red-600' : priority === 'средний' ? 'text-yellow-600' : 'text-green-600'}">${priorityLabel}</h4>
+                                            <div class="space-y-2">
+                                                ${tasks.length === 0 ? '<p class="text-gray-400 text-sm">Нет задач</p>' : ''}
+                                                ${tasks.map(task => `
+                                                    <div class="flex items-center gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition ${task.completed ? 'opacity-50' : ''}">
+                                                        <input type="checkbox" ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})" class="w-5 h-5 rounded cursor-pointer">
+                                                        <div class="flex-1">
+                                                            <p class="font-semibold ${task.completed ? 'line-through text-gray-500' : 'text-gray-800'}">${task.title}</p>
+                                                            <p class="text-xs text-gray-500">📅 ${task.dueDate} • ${task.category}</p>
+                                                        </div>
+                                                        <button onclick="deleteTask(${task.id})" class="text-red-500 hover:text-red-700 p-2">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                        </button>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
             } else if (state.activeTab === 'ai') {
                 content = `
                     <div class="space-y-6">
@@ -727,6 +865,10 @@
                         <button onclick="updateTab('ai')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'ai' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0zm3.879-10.879l-.707.707M3 12a9 9 0 1118 0 9 9 0 01-18 0zm10.879-10.879l.707.707M12 3v1"></path></svg>
                             <span class="hidden sm:inline">ИИ-Помощник</span>
+                        </button>
+                        <button onclick="updateTab('tasks')" class="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition ${state.activeTab === 'tasks' ? 'bg-blue-500 text-white shadow-md' : 'text-gray-600 hover:bg-gray-100'}">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                            <span class="hidden sm:inline">Задачи</span>
                         </button>
                     </div>
                 </div>
@@ -847,6 +989,52 @@
                             <div class="flex gap-2 mt-4">
                                 <button onclick="addHealthLog()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold">Сохранить запись</button>
                                 <button onclick="closeAddLog()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${state.showAddTask ? `
+                    <div class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-6 max-w-md w-full">
+                            <h3 class="text-xl font-bold mb-4">✅ Новая задача</h3>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Название задачи</label>
+                                    <input type="text" placeholder="Описание..." value="${state.newTask.title}" oninput="updateTaskField('title', this.value)" class="w-full border rounded-lg p-2">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Приоритет</label>
+                                    <select value="${state.newTask.priority}" oninput="updateTaskField('priority', this.value)" class="w-full border rounded-lg p-2">
+                                        <option value="высокий">🔴 Срочно</option>
+                                        <option value="средний">🟡 Важно</option>
+                                        <option value="низкий">🟢 Обычно</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Дата выполнения</label>
+                                    <input type="date" value="${state.newTask.dueDate}" oninput="updateTaskField('dueDate', this.value)" class="w-full border rounded-lg p-2">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-semibold mb-1">Категория</label>
+                                    <select value="${state.newTask.category}" oninput="updateTaskField('category', this.value)" class="w-full border rounded-lg p-2">
+                                        <option value="здоровье">🏥 Здоровье</option>
+                                        <option value="медицина">💊 Медицина</option>
+                                        <option value="активность">🏃 Активность</option>
+                                        <option value="питание">🍖 Питание</option>
+                                        <option value="покупки">🛒 Покупки</option>
+                                        <option value="прочее">📌 Прочее</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2 mt-4">
+                                <button onclick="addTask()" class="flex-1 bg-blue-500 text-white py-2 rounded-lg font-semibold">Создать</button>
+                                <button onclick="closeAddTask()" class="flex-1 bg-gray-200 py-2 rounded-lg">Отмена</button>
                             </div>
                         </div>
                     </div>
