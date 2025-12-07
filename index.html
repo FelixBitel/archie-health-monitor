@@ -38,7 +38,7 @@
                 breed: 'Мишлинг',
                 age: 11,
                 weight: 21,
-                status: 'Это личный сайт Понча',
+                status: 'Под наблюдением после операции',
                 lastCheckup: '2024-12-05',
                 medications: [
                     { name: 'Урзахол', dosage: '1 капсула', times: ['09:00', '21:00'] },
@@ -401,10 +401,11 @@
                         })
                     });
                     data = await response.json();
+                    if (data.error) throw new Error(data.error.message);
                     if (data.content && data.content[0]) {
                         state.aiChat.push({ role: 'assistant', content: data.content[0].text });
                     } else {
-                        throw new Error(data.error?.message || 'Ошибка API');
+                        throw new Error('Нет контента в ответе');
                     }
 
                 } else if (state.apiProvider === 'openai') {
@@ -417,15 +418,91 @@
                         body: JSON.stringify({
                             model: 'gpt-4o-mini',
                             max_tokens: 1024,
-                            system: systemPrompt,
-                            messages: [{ role: 'user', content: currentInput }]
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: currentInput }
+                            ]
                         })
                     });
                     data = await response.json();
+                    if (data.error) throw new Error(data.error.message);
                     if (data.choices && data.choices[0]) {
                         state.aiChat.push({ role: 'assistant', content: data.choices[0].message.content });
                     } else {
-                        throw new Error(data.error?.message || 'Ошибка API');
+                        throw new Error('Нет контента в ответе');
+                    }
+
+                } else if (state.apiProvider === 'openrouter') {
+                    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${state.apiKey}`,
+                            'HTTP-Referer': window.location.href
+                        },
+                        body: JSON.stringify({
+                            model: 'meta-llama/llama-2-7b-chat',
+                            max_tokens: 1024,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: currentInput }
+                            ]
+                        })
+                    });
+                    data = await response.json();
+                    if (data.error) throw new Error(data.error.message || 'Ошибка OpenRouter');
+                    if (data.choices && data.choices[0]) {
+                        state.aiChat.push({ role: 'assistant', content: data.choices[0].message.content });
+                    } else {
+                        throw new Error('Нет контента в ответе');
+                    }
+
+                } else if (state.apiProvider === 'perplexity') {
+                    response = await fetch('https://api.perplexity.ai/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${state.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'pplx-7b-online',
+                            max_tokens: 1024,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: currentInput }
+                            ]
+                        })
+                    });
+                    data = await response.json();
+                    if (data.error) throw new Error(data.error.message || 'Ошибка Perplexity');
+                    if (data.choices && data.choices[0]) {
+                        state.aiChat.push({ role: 'assistant', content: data.choices[0].message.content });
+                    } else {
+                        throw new Error('Нет контента в ответе');
+                    }
+
+                } else if (state.apiProvider === 'deepseek') {
+                    response = await fetch('https://api.deepseek.com/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${state.apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: 'deepseek-chat',
+                            max_tokens: 1024,
+                            messages: [
+                                { role: 'system', content: systemPrompt },
+                                { role: 'user', content: currentInput }
+                            ]
+                        })
+                    });
+                    data = await response.json();
+                    if (data.error) throw new Error(data.error.message);
+                    if (data.choices && data.choices[0]) {
+                        state.aiChat.push({ role: 'assistant', content: data.choices[0].message.content });
+                    } else {
+                        throw new Error('Нет контента в ответе');
                     }
 
                 } else if (state.apiProvider === 'huggingface') {
@@ -441,35 +518,16 @@
                         })
                     });
                     data = await response.json();
-                    if (data[0] && data[0].generated_text) {
+                    if (data.error) throw new Error(data.error);
+                    if (Array.isArray(data) && data[0] && data[0].generated_text) {
                         state.aiChat.push({ role: 'assistant', content: data[0].generated_text });
                     } else {
-                        throw new Error('Ошибка HuggingFace API');
-                    }
-
-                } else if (state.apiProvider === 'deepseek') {
-                    response = await fetch('https://api.deepseek.com/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${state.apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: 'deepseek-chat',
-                            max_tokens: 1024,
-                            system: systemPrompt,
-                            messages: [{ role: 'user', content: currentInput }]
-                        })
-                    });
-                    data = await response.json();
-                    if (data.choices && data.choices[0]) {
-                        state.aiChat.push({ role: 'assistant', content: data.choices[0].message.content });
-                    } else {
-                        throw new Error(data.error?.message || 'Ошибка API');
+                        throw new Error('Нет контента в ответе');
                     }
                 }
             } catch (error) {
-                const errorMessage = { role: 'assistant', content: `⚠️ Ошибка: ${error.message}` };
+                console.error('AI Error:', error);
+                const errorMessage = { role: 'assistant', content: `⚠️ Ошибка: ${error.message}. Проверьте API ключ и интернет-соединение.` };
                 state.aiChat.push(errorMessage);
             }
             state.aiLoading = false;
@@ -1051,6 +1109,8 @@
                                     <option value="anthropic" ${state.apiProvider === 'anthropic' ? 'selected' : ''}>🤖 Anthropic Claude</option>
                                     <option value="openai" ${state.apiProvider === 'openai' ? 'selected' : ''}>🔓 OpenAI (GPT)</option>
                                     <option value="deepseek" ${state.apiProvider === 'deepseek' ? 'selected' : ''}>🔍 DeepSeek</option>
+                                    <option value="openrouter" ${state.apiProvider === 'openrouter' ? 'selected' : ''}>🌐 OpenRouter</option>
+                                    <option value="perplexity" ${state.apiProvider === 'perplexity' ? 'selected' : ''}>🔮 Perplexity</option>
                                     <option value="huggingface" ${state.apiProvider === 'huggingface' ? 'selected' : ''}>🤗 HuggingFace</option>
                                 </select>
                             </div>
@@ -1067,10 +1127,12 @@
 
                             <p class="text-xs text-gray-500 mb-4">
                                 ${
-                                    state.apiProvider === 'anthropic' ? '📖 <a href="https://console.anthropic.com/keys" target="_blank" class="text-blue-500 underline">Получить ключ Anthropic</a>' :
-                                    state.apiProvider === 'openai' ? '📖 <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-500 underline">Получить ключ OpenAI</a>' :
-                                    state.apiProvider === 'deepseek' ? '📖 <a href="https://platform.deepseek.com/api_keys" target="_blank" class="text-blue-500 underline">Получить ключ DeepSeek</a>' :
-                                    '📖 <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-blue-500 underline">Получить ключ HuggingFace</a>'
+                                    state.apiProvider === 'anthropic' ? '📖 <a href="https://console.anthropic.com/keys" target="_blank" class="text-blue-500 underline">Получить ключ</a>' :
+                                    state.apiProvider === 'openai' ? '📖 <a href="https://platform.openai.com/api-keys" target="_blank" class="text-blue-500 underline">Получить ключ</a>' :
+                                    state.apiProvider === 'deepseek' ? '📖 <a href="https://platform.deepseek.com/api_keys" target="_blank" class="text-blue-500 underline">Получить ключ</a>' :
+                                    state.apiProvider === 'openrouter' ? '📖 <a href="https://openrouter.ai/keys" target="_blank" class="text-blue-500 underline">Получить ключ</a>' :
+                                    state.apiProvider === 'perplexity' ? '📖 <a href="https://www.perplexity.ai/settings/api" target="_blank" class="text-blue-500 underline">Получить ключ</a>' :
+                                    '📖 <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-blue-500 underline">Получить ключ</a>'
                                 }
                             </p>
 
