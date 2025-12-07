@@ -194,6 +194,11 @@
             if (savedProvider) state.apiProvider = savedProvider;
         }
 
+        function updateApiProvider(value) {
+            state.apiProvider = value;
+            render();
+        }
+
         function updateAiInput(value) {
             state.aiInput = value;
         }
@@ -854,11 +859,11 @@
                             
                             <div class="mb-4">
                                 <label class="block text-sm font-semibold mb-2">Провайдер</label>
-                                <select onchange="state.apiProvider = this.value; render()" class="w-full border rounded-lg p-2">
-                                    <option value="anthropic">🤖 Anthropic Claude</option>
-                                    <option value="openai">🔓 OpenAI (GPT)</option>
-                                    <option value="deepseek">🔍 DeepSeek</option>
-                                    <option value="huggingface">🤗 HuggingFace</option>
+                                <select onchange="updateApiProvider(this.value)" class="w-full border rounded-lg p-2" value="${state.apiProvider}">
+                                    <option value="anthropic" ${state.apiProvider === 'anthropic' ? 'selected' : ''}>🤖 Anthropic Claude</option>
+                                    <option value="openai" ${state.apiProvider === 'openai' ? 'selected' : ''}>🔓 OpenAI (GPT)</option>
+                                    <option value="deepseek" ${state.apiProvider === 'deepseek' ? 'selected' : ''}>🔍 DeepSeek</option>
+                                    <option value="huggingface" ${state.apiProvider === 'huggingface' ? 'selected' : ''}>🤗 HuggingFace</option>
                                 </select>
                             </div>
 
